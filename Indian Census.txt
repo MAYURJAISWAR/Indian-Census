@@ -1,0 +1,120 @@
+// SQL Portfolio Project Part 1
+CREATE OR REPLACE DATABASE mj_project_census;
+-- Indian census
+
+CREATE OR REPLACE TABLE mj_dataset1(
+  district VARCHAR(30),
+  state VARCHAR(30),
+  growth_in_percentage DECIMAL(7,2),
+  sex_ratio INT,
+  literacy_rate DECIMAL(7,2));
+  
+ SELECT * FROM mj_dataset1;
+
+CREATE OR REPLACE TABLE mj_dataset2(
+  district VARCHAR(30),
+  state VARCHAR(30),
+  area_in_km INT,
+  population INT);
+  
+  SELECT * FROM mj_dataset2;
+  
+  -- Number of rows in dataset
+  SELECT COUNT(*) AS total_records FROM mj_dataset1;
+  SELECT COUNT(*) AS total_records FROM mj_dataset2;
+  
+  -- Data for 2 states i.e Maharashtra and Uttar Pradesh
+  SELECT state,population FROM mj_dataset2 WHERE state IN('Maharashtra','Uttar Pradesh');
+  
+  -- Population 
+  SELECT SUM(population) AS total_population FROM mj_dataset2;
+  
+  -- Average growth of India
+  SELECT AVG(growth_in_percentage) FROM mj_dataset1;
+  
+  -- Average growth of India by state
+  SELECT state,AVG(growth_in_percentage) AS average_growth_of_state FROM mj_dataset1 GROUP BY state;
+  
+  -- Average sex ratio by state
+  SELECT state,ROUND(AVG(sex_ratio),0) AS average_sex_ratio_of_state FROM mj_dataset1 GROUP BY state ORDER BY average_sex_ratio_of_state DESC;
+  
+ -- Rename column
+ ALTER TABLE mj_dataset1 RENAME COLUMN literacy TO literacy_rate;
+ 
+ -- Average literacy state of state
+ SELECT state,ROUND(AVG(literacy_rate),0) AS average_literacy_rate_of_state FROM mj_dataset1 GROUP BY state ORDER BY average_literacy_rate_of_state DESC;
+ 
+ -- State of average literacy>90
+ SELECT state,ROUND(AVG(literacy_rate),0) AS state_with_literacy_rate_greater_than_90 FROM mj_dataset1 GROUP BY state HAVING ROUND(AVG(literacy_rate),0)>90 ORDER BY state_with_literacy_rate_greater_than_90 DESC;
+ 
+ -- Top 3 states with highest average growth rate
+ SELECT state,AVG(growth_in_percentage)AS average_growth_rate FROM mj_dataset1 GROUP BY state ORDER BY AVG(growth_in_percentage) DESC LIMIT 3;
+ 
+ -- Bottom 3 states with lowest sex ration
+ SELECT state,ROUND(AVG(sex_ratio),0) AS average_sex_ratio_of_state FROM mj_dataset1 GROUP BY state ORDER BY average_sex_ratio_of_state LIMIT 3;
+ 
+ 
+ -- Top and bottom 3 states in literacy
+ CREATE OR REPLACE TABLE top3_states_with_highest_literacy_rate(
+     state VARCHAR(25),
+     top_state FLOAT);
+     
+INSERT INTO top3_with_highest_literacy_rate SELECT state,ROUND(AVG(literacy_rate),0) AS average_literacy_rate_of_state FROM mj_dataset1 GROUP BY state ORDER BY average_literacy_rate_of_state DESC LIMIT 3;
+
+SELECT * FROM top3_states_with_highest_literacy_rate;
+
+CREATE OR REPLACE TABLE bottom3_states_with_lowest_literacy_rate(
+    state VARCHAR(25),
+    bottom_state FLOAT);
+
+INSERT INTO bottom3_states_with_lowest_literacy_rate SELECT state,ROUND(AVG(literacy_rate),0) AS average_literacy_rate_of_state FROM mj_dataset1 GROUP BY state ORDER BY average_literacy_rate_of_state LIMIT 3;
+
+SELECT * FROM bottom3_states_with_lowest_literacy_rate;
+
+-- use of UNION to combine tables
+SELECT * FROM top3_states_with_highest_literacy_rate UNION SELECT * FROM bottom3_states_with_lowest_literacy_rate;
+
+-- State starting with letter 'a'
+SELECT DISTINCT(state) FROM mj_dataset1 WHERE state LIKE 'A%' OR state LIKE 'B%';
+
+SELECT DISTINCT(state) FROM mj_dataset1 WHERE state LIKE 'M%' AND state LIKE '%a';
+
+// SQL Portfolio Project Part2
+
+-- Joining both table
+SELECT a.district,a.state,a.sex_ratio,b.population FROM mj_dataset1 a INNER JOIN mj_dataset2 b on a.district=b.district;
+
+// Total number of males and females
+// males=population/(sex_ratio+1)
+// females=population-population/(sex_ratio+1)
+
+SELECT a.district AS district,a.state AS state,ROUND(b.population/(a.sex_ratio+1),0) AS total_no_of_males,ROUND((b.population*a.sex_ratio)/(a.sex_ratio+1),0) AS total_no_of_females FROM mj_dataset1 a INNER JOIN mj_dataset2 b ON a.district=b.district; // district level data
+
+SELECT d.state,SUM(d.males) AS total_males,SUM(d.females) AS total_females FROM (SELECT c.district,c.state,ROUND(c.population/(c.sex_ratio+1),0) AS males,ROUND((c.population*c.sex_ratio)/(c.sex_ratio+1),0) AS females FROM (SELECT a.district,a.state,a.sex_ratio/1000 AS sex_ratio,b.population FROM mj_dataset1 a INNER JOIN mj_dataset2 b ON a.district=b.district)c)d GROUP BY d.state; // state level data
+
+-- Total literacy ratio
+SELECT a.district,a.state,a.literacy_rate AS literacy_ratio,b.population FROM mj_dataset1 a INNER JOIN mj_dataset2 b on a.district=b.district;
+
+-- Total literacy ratio in state
+SELECT a.district,a.state,ROUND(a.literacy_rate*b.population) AS literate_people,ROUND((1-a.literacy_rate)*b.population) AS illiterate_people FROM mj_dataset1 a JOIN mj_dataset2 b ON a.district=b.district;
+
+-- Combine total literacy ratio in state
+SELECT a.state,SUM(ROUND(literacy_rate*population/100,0)) AS total_literate_people,SUM(ROUND((1-literacy_rate/100)*population,0)) AS total_illiterate_people FROM mj_dataset1 a JOIN mj_dataset2 b ON a.district=b.district GROUP BY a.state ORDER BY a.state;
+
+-- Population in previous census
+SELECT ROUND(SUM(population/(1+growth_in_percentage)),0) AS previous_census_population,ROUND(SUM(population),0) AS current_census_population FROM mj_dataset1 a INNER JOIN mj_dataset2 b ON a.district=b.district;
+
+--Population vs area
+SELECT SUM(area_in_km)/SUM(population/(1+growth_in_percentage)) AS previous_census_population_versus_area,SUM(area_in_km)/SUM(population) AS current_census_population_versus_area FROM mj_dataset1 a JOIN mj_dataset2 b ON a.district=b.district;
+
+
+--output top 3 districts from each state with highest literacy rate
+WITH ranked_data AS (
+    SELECT district, state, literacy_rate,
+           ROW_NUMBER() OVER (PARTITION BY state ORDER BY literacy_rate DESC) AS row_num
+    FROM mj_dataset1
+)
+SELECT district, state, literacy_rate
+FROM ranked_data
+WHERE row_num IN (1,2,3)
+ORDER BY state;
