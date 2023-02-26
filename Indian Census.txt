@@ -1,4 +1,4 @@
-// SQL Portfolio Project Part 1
+// SQL Portfolio Project 
 CREATE OR REPLACE DATABASE mj_project_census;
 -- Indian census
 
